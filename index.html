@@ -1,0 +1,610 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --ink:#232b35; --paper:#EDE6D6; --paper-dark:#E2D9C4;
+    --navy:#1B2A4A; --navy-light:#2A3D63; --rust:#B5651D; --sage:#4C7A5E; --alert:#A83232;
+    --line: rgba(35,43,53,0.14);
+    --tab-cash:#4C7A5E; --tab-upi:#B5651D; --tab-card:#3B5B8C; --tab-net:#7A5C9E;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--navy);color:var(--ink);font-family:'Inter',sans-serif;}
+  .wrap{max-width:1200px;margin:0 auto;padding:24px 20px 60px;}
+
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;color:var(--paper);flex-wrap:wrap;gap:10px;}
+  .masthead h1{font-family:'Fraunces',serif;font-weight:700;font-size:2.1rem;margin:0;letter-spacing:-0.01em;}
+  .masthead .sub{font-size:0.82rem;opacity:0.65;margin-top:4px;}
+  .masthead .date-stamp{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;background:rgba(237,230,214,0.1);border:1px solid rgba(237,230,214,0.25);padding:5px 10px;border-radius:3px;}
+
+  .source-strip{display:flex;align-items:center;gap:10px;background:rgba(237,230,214,0.08);border:1px solid rgba(237,230,214,0.2);border-radius:6px;padding:8px 14px;margin-bottom:16px;color:var(--paper);font-size:0.78rem;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#666;}
+  .dot.ok{background:var(--sage);}
+  .dot.bad{background:var(--alert);}
+  .dot.stale{background:#C9A24B;}
+  .source-strip .spacer{flex:1;}
+  .btn-mini{background:transparent;border:1px solid rgba(237,230,214,0.4);color:var(--paper);padding:4px 10px;border-radius:4px;font-size:0.72rem;cursor:pointer;}
+  .btn-mini:hover{background:rgba(237,230,214,0.12);}
+
+  .tabbar{display:flex;gap:4px;margin-bottom:18px;border-bottom:2px solid rgba(237,230,214,0.2);}
+  .tab-btn{background:none;border:none;color:var(--paper);opacity:0.55;padding:10px 18px;font-family:'Fraunces',serif;font-size:1rem;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;}
+  .tab-btn.active{opacity:1;border-bottom-color:var(--rust);}
+  .tab-page{display:none;}
+  .tab-page.active{display:block;}
+
+  .panel{background:var(--paper);border-radius:6px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,0.18);}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:860px){.grid{grid-template-columns:1fr;}}
+
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--navy);opacity:0.55;margin-bottom:4px;}
+  .panel h2{font-family:'Fraunces',serif;font-size:1.15rem;margin:0 0 14px;font-weight:600;}
+
+  label{display:block;font-size:0.75rem;font-weight:600;margin:10px 0 4px;color:var(--navy);}
+  input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:4px;background:#fff;font-family:'Inter',sans-serif;font-size:0.9rem;color:var(--ink);}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-light);outline-offset:1px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  .paymethod-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+  .pm-btn{flex:1;min-width:70px;text-align:center;padding:8px 6px;border-radius:4px;border:1px solid var(--line);background:#fff;font-size:0.78rem;cursor:pointer;font-weight:600;}
+  .pm-btn.active[data-pm="cash"]{background:var(--tab-cash);color:#fff;border-color:var(--tab-cash);}
+  .pm-btn.active[data-pm="upi"]{background:var(--tab-upi);color:#fff;border-color:var(--tab-upi);}
+  .pm-btn.active[data-pm="card"]{background:var(--tab-card);color:#fff;border-color:var(--tab-card);}
+  .pm-btn.active[data-pm="netbanking"]{background:var(--tab-net);color:#fff;border-color:var(--tab-net);}
+
+  .btn{display:inline-block;padding:10px 16px;border-radius:4px;border:none;font-weight:600;font-size:0.85rem;cursor:pointer;font-family:'Inter',sans-serif;}
+  .btn-primary{background:var(--navy);color:var(--paper);width:100%;margin-top:14px;}
+  .btn-primary:hover{background:var(--navy-light);}
+  .btn-ghost{background:transparent;color:var(--navy);border:1px solid var(--navy);}
+  .btn-sync{background:var(--rust);color:#fff;}
+  .btn-sync:hover{opacity:0.9;}
+
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+  @media (max-width:860px){.stats-row{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--paper);border-radius:6px;padding:14px 16px;}
+  .stat .val{font-family:'IBM Plex Mono',monospace;font-size:1.5rem;font-weight:600;color:var(--navy);}
+  .stat .val.sage{color:var(--sage);}
+
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:860px){.charts-grid{grid-template-columns:1fr;}}
+  .chart-box{height:260px;position:relative;}
+
+  table{width:100%;border-collapse:collapse;font-size:0.83rem;}
+  thead th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;padding:6px 8px;border-bottom:2px solid var(--ink);}
+  tbody td{padding:8px;border-bottom:1px solid var(--line);}
+  tbody tr:hover{background:rgba(0,0,0,0.03);}
+  tbody tr.pending{background:rgba(201,162,75,0.12);}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:0.7rem;font-weight:700;color:#fff;}
+  .tag.cash{background:var(--tab-cash);} .tag.upi{background:var(--tab-upi);} .tag.card{background:var(--tab-card);} .tag.netbanking{background:var(--tab-net);}
+  .tag.pending-tag{background:#C9A24B;color:#232b35;}
+  .amt{font-family:'IBM Plex Mono',monospace;font-weight:600;text-align:right;}
+  .del-btn{background:none;border:none;color:var(--alert);cursor:pointer;font-size:0.75rem;font-weight:600;}
+
+  .settings-panel{margin-top:12px;padding:14px;background:rgba(237,230,214,0.08);border:1px dashed rgba(237,230,214,0.35);border-radius:6px;}
+  .settings-panel label{color:var(--paper);}
+  .settings-panel input{background:rgba(255,255,255,0.92);}
+  .helptext{font-size:0.72rem;opacity:0.6;margin-top:6px;line-height:1.5;}
+
+  .fi-box{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .fi-gauge{flex:1;min-width:220px;}
+  .fi-bar-track{height:10px;background:rgba(0,0,0,0.08);border-radius:6px;overflow:hidden;}
+  .fi-bar-fill{height:100%;background:linear-gradient(90deg,var(--sage),var(--rust));border-radius:6px;transition:width 0.4s;}
+  .fi-numbers{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;margin-top:6px;}
+
+  .empty-state{text-align:center;padding:30px 10px;opacity:0.5;font-size:0.85rem;}
+  .filter-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  .filter-row select{width:auto;}
+  .month-label{font-family:'IBM Plex Mono',monospace;font-size:0.8rem;font-weight:600;}
+
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .table-scroll table{min-width:560px;}
+
+  @media (max-width:600px){
+    .wrap{padding:16px 12px 40px;}
+    .masthead h1{font-size:1.5rem;}
+    .masthead .date-stamp{display:none;}
+    .source-strip{font-size:0.7rem;padding:8px 10px;}
+    #pendingBadge{width:100%;order:3;}
+    .tabbar{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+    .tab-btn{padding:8px 12px;font-size:0.85rem;white-space:nowrap;flex-shrink:0;}
+    .panel{padding:14px;}
+    .stats-row{grid-template-columns:1fr 1fr;gap:8px;}
+    .stat{padding:10px 12px;}
+    .stat .val{font-size:1.15rem;}
+    .charts-grid{gap:12px;}
+    .chart-box{height:220px;}
+    .row2{grid-template-columns:1fr;}
+    .filter-row{gap:6px;}
+    .filter-row .btn{padding:8px 10px;font-size:0.78rem;}
+    .pm-btn{padding:10px 6px;min-width:60px;}
+    .btn-primary{padding:12px 16px;}
+  }
+</style>
+
+<div class="wrap">
+  <div class="masthead">
+    <div>
+      <h1>The Ledger</h1>
+      <div class="sub">Every rupee out — tracked, tabbed, tallied</div>
+    </div>
+    <div class="date-stamp" id="todayStamp"></div>
+  </div>
+
+  <div class="source-strip">
+    <span class="dot" id="sourceDot"></span>
+    <span id="sourceLabel">Not connected to a Sheet yet</span>
+    <span class="spacer"></span>
+    <span id="pendingBadge"></span>
+    <button class="btn-mini" id="refreshBtn">↻ Refresh from Sheet</button>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="entry">Entry</button>
+    <button class="tab-btn" data-tab="ledger">Ledger</button>
+    <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- ENTRY TAB -->
+  <div class="tab-page active" id="page-entry">
+    <div class="grid">
+      <div class="panel">
+        <div class="eyebrow">New entry</div>
+        <h2>Log an expense</h2>
+        <div class="row2">
+          <div><label>Date</label><input type="date" id="f-date"></div>
+          <div><label>Amount (₹)</label><input type="number" id="f-amount" placeholder="0" min="0" step="1"></div>
+        </div>
+        <label>Category</label>
+        <select id="f-category"></select>
+        <label>Paid via</label>
+        <div class="paymethod-row" id="f-paymethod">
+          <div class="pm-btn active" data-pm="upi">UPI</div>
+          <div class="pm-btn" data-pm="cash">Cash</div>
+          <div class="pm-btn" data-pm="card">Card</div>
+          <div class="pm-btn" data-pm="netbanking">Net Bank</div>
+        </div>
+        <label>Note (optional)</label>
+        <input type="text" id="f-note" placeholder="e.g. BESCOM bill, Aug">
+        <button class="btn btn-primary" id="addBtn">Add & sync entry</button>
+        <div class="helptext" id="addStatus" style="color:var(--navy);"></div>
+        <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+          <label style="margin-top:0;">Add custom category</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="new-cat" placeholder="e.g. Pet care">
+            <button class="btn btn-ghost" id="addCatBtn" style="white-space:nowrap;">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="eyebrow">How this stays in sync</div>
+        <h2>Entry → Sheet → every device</h2>
+        <p style="font-size:0.85rem;line-height:1.65;">
+          Every time you tap <strong>Add &amp; sync entry</strong>, it's sent straight to your Google Sheet — from laptop or mobile, doesn't matter which. If you're offline, it's held here as <strong>pending</strong> and retried next time you hit refresh or add another entry.
+        </p>
+        <p style="font-size:0.85rem;line-height:1.65;">
+          The <strong>Ledger</strong> and <strong>Dashboard</strong> tabs always read the full history straight back from the Sheet — that's the single source of truth, not any one browser. So whatever device you check from, you'll see the same complete picture.
+        </p>
+        <div class="helptext">First time here? Go to the <strong>Settings</strong> tab and paste in your Apps Script Web App URL.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEDGER TAB -->
+  <div class="tab-page" id="page-ledger">
+    <div class="panel">
+      <div class="eyebrow">Register</div>
+      <h2>Transaction ledger (from Sheet + pending)</h2>
+      <div class="filter-row">
+        <span class="month-label">Month:</span>
+        <select id="monthFilter"></select>
+        <button class="btn btn-ghost" id="exportBtn" style="margin-left:auto;">Export CSV</button>
+      </div>
+      <div class="table-scroll"><div id="tableWrap"></div></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <div class="tab-page" id="page-dashboard">
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="eyebrow">FI snapshot</div>
+      <h2>Your runway, from real data</h2>
+      <div class="fi-box">
+        <div class="fi-gauge">
+          <div class="fi-bar-track"><div class="fi-bar-fill" id="fiBarFill" style="width:0%"></div></div>
+          <div class="fi-numbers"><span id="monthsTracked">0 months tracked</span><span id="fiTargetMult">Target: 25× annual spend</span></div>
+        </div>
+      </div>
+      <div class="row2" style="margin-top:14px;">
+        <div><label>Avg monthly spend</label><div class="amt" id="avgMonthly" style="text-align:left;font-size:1.1rem;">₹0</div></div>
+        <div><label>Withdrawal rate</label>
+          <select id="swrSelect">
+            <option value="25">4.0% (25×)</option>
+            <option value="28.5" selected>3.5% (28.5×)</option>
+            <option value="33">3.0% (33×)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label>Estimated FI corpus needed</label>
+        <div class="amt" id="fiCorpus" style="text-align:left;font-size:1.4rem;color:var(--navy);">₹0</div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat"><div class="eyebrow">This month</div><div class="val" id="statThisMonth">₹0</div></div>
+      <div class="stat"><div class="eyebrow">Last month</div><div class="val" id="statLastMonth">₹0</div></div>
+      <div class="stat"><div class="eyebrow">Top category</div><div class="val" id="statTopCat" style="font-size:1.1rem;">—</div></div>
+      <div class="stat"><div class="eyebrow">Entries logged</div><div class="val sage" id="statCount">0</div></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="eyebrow">Trend</div>
+      <h2>Monthly spend over time</h2>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="panel">
+        <div class="eyebrow">Breakdown</div>
+        <h2>By category (all-time)</h2>
+        <div class="chart-box"><canvas id="catChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="eyebrow">Breakdown</div>
+        <h2>By payment method (all-time)</h2>
+        <div class="chart-box"><canvas id="pmChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-page" id="page-settings">
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="eyebrow">Connection</div>
+      <h2>Google Sheet sync settings</h2>
+      <div class="settings-panel">
+        <label>Apps Script Web App URL</label>
+        <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/XXXX/exec">
+        <div class="helptext">Same URL handles both sending new entries and reading the full ledger back. Saved locally in this browser only — you'll need to paste it again on each new device/browser.</div>
+        <button class="btn btn-sync" id="saveUrlBtn" style="margin-top:10px;">Save URL</button>
+        <span class="helptext" id="urlSaveStatus"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">One-time setup</div>
+      <h2>Google Apps Script backend (paste this in once)</h2>
+      <p style="font-size:0.82rem;line-height:1.6;">1. Create a Google Sheet. 2. Extensions → Apps Script. 3. Paste the code below (replaces any previous version — this one adds reading, not just writing). 4. Deploy → New deployment → Web app → Execute as "Me" → Who has access "Anyone". 5. Copy the Web App URL into the field above.</p>
+      <pre style="background:var(--ink);color:var(--paper);padding:14px;border-radius:6px;font-size:0.75rem;overflow-x:auto;">function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Entries')
+              || SpreadsheetApp.getActiveSpreadsheet().insertSheet('Entries');
+  var rows = JSON.parse(e.postData.contents);
+  rows.forEach(function(r) {
+    sheet.appendRow([r.date, r.amount, r.category, r.paymethod, r.note]);
+  });
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+         .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Entries');
+  var rows = [];
+  if (sheet) {
+    var data = sheet.getDataRange().getValues();
+    rows = data.map(function(r) {
+      return { date: r[0], amount: r[1], category: r[2], paymethod: r[3], note: r[4] };
+    }).filter(function(r){ return r.date; });
+  }
+  var json = JSON.stringify(rows);
+  if (e.parameter.callback) {
+    return ContentService.createTextOutput(e.parameter.callback + '(' + json + ')')
+           .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}</pre>
+      <div class="helptext">Note: reading data back uses a technique called JSONP (a script-tag fetch) rather than a normal request — this is because Google's Web App doesn't send the browser permission headers a regular fetch needs to read a response from a different site. JSONP works around that reliably; you don't need to do anything differently, it's handled automatically.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+(function(){
+  const DEFAULT_CATS = ["Investment","Grocery","EB (Electricity)","Internet","Rent/EMI","Dining","Transport","Shopping","Medical","Entertainment","Others"];
+  let remoteEntries = [];   // confirmed rows pulled from the Sheet
+  let pending = [];         // added locally, not yet confirmed synced
+  let categories = [...DEFAULT_CATS];
+  let selectedPM = 'upi';
+  let trendChart, catChart, pmChart;
+  let lastFetchTime = null;
+
+  const $ = id => document.getElementById(id);
+  const todayISO = () => new Date().toISOString().slice(0,10);
+  const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+
+  $('todayStamp').textContent = new Date().toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  $('f-date').value = todayISO();
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      $('page-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab==='dashboard' || btn.dataset.tab==='ledger') refreshFromSheet(false);
+    });
+  });
+
+  function renderCategoryOptions(){
+    $('f-category').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+  renderCategoryOptions();
+
+  $('f-paymethod').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.pm-btn');
+    if(!btn) return;
+    document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedPM = btn.dataset.pm;
+  });
+
+  $('addCatBtn').addEventListener('click', ()=>{
+    const v = $('new-cat').value.trim();
+    if(!v) return;
+    if(!categories.includes(v)) categories.push(v);
+    $('new-cat').value='';
+    renderCategoryOptions();
+    saveLocalState();
+  });
+
+  async function loadLocalState(){
+    try{
+      const p = await window.storage.get('ledger-pending', false);
+      pending = p ? JSON.parse(p.value) : [];
+    }catch(err){ pending = []; }
+    try{
+      const s = await window.storage.get('ledger-settings', false);
+      if(s){
+        const parsed = JSON.parse(s.value);
+        if(parsed.categories) categories = parsed.categories;
+        if(parsed.sheetUrl) $('sheetUrl').value = parsed.sheetUrl;
+      }
+    }catch(err){ /* none yet */ }
+    renderCategoryOptions();
+  }
+
+  async function saveLocalState(){
+    try{ await window.storage.set('ledger-pending', JSON.stringify(pending), false); }catch(err){}
+    try{
+      await window.storage.set('ledger-settings', JSON.stringify({
+        categories: categories, sheetUrl: $('sheetUrl').value.trim()
+      }), false);
+    }catch(err){}
+  }
+
+  $('saveUrlBtn').addEventListener('click', async ()=>{
+    await saveLocalState();
+    $('urlSaveStatus').textContent = 'Saved ✓';
+    setTimeout(()=> $('urlSaveStatus').textContent = '', 2000);
+    refreshFromSheet(true);
+  });
+
+  function fetchFromSheetJSONP(url, timeoutMs=12000){
+    return new Promise((resolve, reject)=>{
+      const cbName = 'ledgerCb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+      const cleanup = ()=>{ delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); };
+      window[cbName] = (data)=>{ resolve(data); cleanup(); };
+      const script = document.createElement('script');
+      const sep = url.includes('?') ? '&' : '?';
+      script.src = url + sep + 'callback=' + cbName + '&_=' + Date.now();
+      script.onerror = ()=>{ reject(new Error('load-failed')); cleanup(); };
+      document.body.appendChild(script);
+      setTimeout(()=>{ if(window[cbName]){ reject(new Error('timeout')); cleanup(); } }, timeoutMs);
+    });
+  }
+
+  function setSourceStatus(state, text){
+    $('sourceDot').className = 'dot ' + state;
+    $('sourceLabel').textContent = text;
+  }
+
+  async function refreshFromSheet(userTriggered){
+    const url = $('sheetUrl').value.trim();
+    if(!url){
+      setSourceStatus('bad', 'No Sheet connected — add your Apps Script URL in Settings.');
+      renderAll();
+      return;
+    }
+    setSourceStatus('stale', 'Loading from Sheet…');
+    try{
+      const data = await fetchFromSheetJSONP(url);
+      remoteEntries = (data||[]).map((r,i)=>({
+        id: 'remote-'+i, date: String(r.date).slice(0,10), amount: parseFloat(r.amount)||0,
+        category: r.category||'Others', paymethod: r.paymethod||'upi', note: r.note||'', synced:true
+      }));
+      lastFetchTime = new Date();
+      setSourceStatus('ok', `Synced with Sheet · ${remoteEntries.length} rows · updated ${lastFetchTime.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`);
+    }catch(err){
+      setSourceStatus('bad', 'Could not reach Sheet — showing last known + pending data.');
+    }
+    await trySyncPending(false);
+    renderAll();
+  }
+
+  async function pushEntryToSheet(entry, url){
+    await fetch(url, {
+      method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify([{date:entry.date, amount:entry.amount, category:entry.category, paymethod:entry.paymethod, note:entry.note||''}])
+    });
+  }
+
+  async function trySyncPending(showStatus){
+    const url = $('sheetUrl').value.trim();
+    if(!url || !pending.length) return;
+    const stillPending = [];
+    for(const entry of pending){
+      try{ await pushEntryToSheet(entry, url); }
+      catch(err){ stillPending.push(entry); }
+    }
+    pending = stillPending;
+    await saveLocalState();
+    if(!pending.length && showStatus) await refreshFromSheet(false);
+  }
+
+  $('addBtn').addEventListener('click', async ()=>{
+    const date = $('f-date').value || todayISO();
+    const amount = parseFloat($('f-amount').value);
+    const category = $('f-category').value;
+    const note = $('f-note').value.trim();
+    const url = $('sheetUrl').value.trim();
+    if(!amount || amount <= 0){ $('f-amount').focus(); return; }
+
+    const entry = { id: 'p-'+Date.now(), date, amount, category, paymethod: selectedPM, note };
+    $('addStatus').textContent = 'Saving…';
+
+    if(url){
+      try{
+        await pushEntryToSheet(entry, url);
+        $('addStatus').textContent = '✓ Sent to Sheet.';
+        await refreshFromSheet(false);
+      }catch(err){
+        pending.push(entry);
+        await saveLocalState();
+        $('addStatus').textContent = 'Offline — queued as pending, will sync automatically next refresh.';
+        renderAll();
+      }
+    }else{
+      pending.push(entry);
+      await saveLocalState();
+      $('addStatus').textContent = 'No Sheet URL set yet (see Settings) — saved as pending locally.';
+      renderAll();
+    }
+    $('f-amount').value=''; $('f-note').value='';
+    setTimeout(()=> $('addStatus').textContent='', 4000);
+  });
+
+  $('refreshBtn').addEventListener('click', ()=> refreshFromSheet(true));
+
+  function allEntries(){ return [...remoteEntries, ...pending]; }
+  function monthKey(dateStr){ return String(dateStr).slice(0,7); }
+  function monthLabel(key){ const [y,m]=key.split('-'); return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
+
+  function populateMonthFilter(){
+    const months = [...new Set(allEntries().map(e=>monthKey(e.date)))].sort().reverse();
+    const sel = $('monthFilter');
+    const current = sel.value;
+    sel.innerHTML = '<option value="all">All months</option>' + months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+    if(months.includes(current)) sel.value = current; else if(months.length) sel.value = months[0]; else sel.value='all';
+  }
+  $('monthFilter').addEventListener('change', renderTable);
+
+  function renderTable(){
+    const filter = $('monthFilter').value;
+    const rows = allEntries().filter(e => filter==='all' || monthKey(e.date)===filter).sort((a,b)=> b.date.localeCompare(a.date));
+    if(!rows.length){ $('tableWrap').innerHTML = `<div class="empty-state">No entries yet for this view.</div>`; return; }
+    $('tableWrap').innerHTML = `
+      <table>
+        <thead><tr><th>Date</th><th>Category</th><th>Paid via</th><th>Note</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>
+        <tbody>
+          ${rows.map(e=>`
+            <tr class="${e.synced?'':'pending'}">
+              <td>${e.date}</td>
+              <td>${e.category}</td>
+              <td><span class="tag ${e.paymethod}">${e.paymethod}</span></td>
+              <td>${e.note || '—'}</td>
+              <td class="amt">${fmt(e.amount)}</td>
+              <td>${e.synced ? '<span style="color:#4C7A5E;font-size:0.75rem;">✓ in sheet</span>' : '<span class="tag pending-tag">pending</span>'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function renderStats(){
+    const now = new Date();
+    const thisKey = now.toISOString().slice(0,7);
+    const lastKey = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+    const list = allEntries();
+    const sum = k => list.filter(e=>monthKey(e.date)===k).reduce((s,e)=>s+e.amount,0);
+    $('statThisMonth').textContent = fmt(sum(thisKey));
+    $('statLastMonth').textContent = fmt(sum(lastKey));
+    $('statCount').textContent = list.length;
+    const byCat = {};
+    list.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
+    const top = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+    $('statTopCat').textContent = top ? top[0] : '—';
+    $('pendingBadge').textContent = pending.length ? `${pending.length} pending sync` : '';
+  }
+
+  function renderFI(){
+    const list = allEntries();
+    const months = [...new Set(list.map(e=>monthKey(e.date)))];
+    const total = list.reduce((s,e)=>s+e.amount,0);
+    const monthsTracked = months.length;
+    const avgMonthly = monthsTracked ? total / monthsTracked : 0;
+    const mult = parseFloat($('swrSelect').value);
+    const corpus = avgMonthly * 12 * mult;
+    $('monthsTracked').textContent = `${monthsTracked} month${monthsTracked===1?'':'s'} tracked`;
+    $('fiTargetMult').textContent = `Multiplier: ${mult}×`;
+    $('avgMonthly').textContent = fmt(avgMonthly);
+    $('fiCorpus').textContent = fmt(corpus);
+    $('fiBarFill').style.width = Math.min(100,(monthsTracked/6)*100) + '%';
+  }
+  $('swrSelect').addEventListener('change', renderFI);
+
+  function renderCharts(){
+    const list = allEntries();
+    const byMonth = {};
+    list.forEach(e=>{ const k=monthKey(e.date); byMonth[k]=(byMonth[k]||0)+e.amount; });
+    const sortedMonths = Object.keys(byMonth).sort();
+    if(trendChart) trendChart.destroy();
+    trendChart = new Chart($('trendChart'), {
+      type:'bar',
+      data:{ labels: sortedMonths.map(monthLabel), datasets:[{ label:'Monthly spend', data: sortedMonths.map(k=>byMonth[k]), backgroundColor:'#1B2A4A', borderRadius:4 }]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>'₹'+v.toLocaleString('en-IN') } } } }
+    });
+
+    const byCat = {};
+    list.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
+    if(catChart) catChart.destroy();
+    catChart = new Chart($('catChart'), {
+      type:'doughnut',
+      data:{ labels:Object.keys(byCat), datasets:[{ data:Object.values(byCat),
+        backgroundColor:['#1B2A4A','#B5651D','#4C7A5E','#7A5C9E','#3B5B8C','#A83232','#C9A24B','#6E8B74','#8C6B4F','#4A4A6A','#B08968'] }]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{boxWidth:12,font:{size:10}}}} }
+    });
+
+    const byPM = {};
+    list.forEach(e=>{ byPM[e.paymethod]=(byPM[e.paymethod]||0)+e.amount; });
+    const pmColors = { cash:'#4C7A5E', upi:'#B5651D', card:'#3B5B8C', netbanking:'#7A5C9E' };
+    if(pmChart) pmChart.destroy();
+    pmChart = new Chart($('pmChart'), {
+      type:'doughnut',
+      data:{ labels:Object.keys(byPM), datasets:[{ data:Object.values(byPM), backgroundColor: Object.keys(byPM).map(k=>pmColors[k]||'#999') }]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{boxWidth:12,font:{size:10}}}} }
+    });
+  }
+
+  function renderAll(){
+    populateMonthFilter();
+    renderTable();
+    renderStats();
+    renderFI();
+    renderCharts();
+  }
+
+  $('exportBtn').addEventListener('click', ()=>{
+    const rows = [['date','amount','category','paymethod','note','status']];
+    allEntries().forEach(e=> rows.push([e.date,e.amount,e.category,e.paymethod,e.note||'', e.synced?'synced':'pending']));
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'ledger-export.csv'; a.click();
+  });
+
+  (async function init(){
+    await loadLocalState();
+    if($('sheetUrl').value.trim()) await refreshFromSheet(false);
+    else renderAll();
+  })();
+})();
+</script>
