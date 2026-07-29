@@ -74,8 +74,9 @@
   .chart-box{height:260px;position:relative;}
 
   table{width:100%;border-collapse:collapse;font-size:0.83rem;}
-  thead th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;padding:6px 8px;border-bottom:2px solid var(--ink);}
-  tbody td{padding:8px;border-bottom:1px solid var(--line);}
+  thead th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;padding:6px 8px;border-bottom:2px solid var(--ink);white-space:nowrap;}
+  tbody td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody td:first-child{white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;font-variant-numeric:tabular-nums;}
   tbody tr:hover{background:rgba(0,0,0,0.03);}
   tbody tr.pending{background:rgba(201,162,75,0.12);}
   .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:0.7rem;font-weight:700;color:#fff;}
@@ -325,6 +326,8 @@ function doGet(e) {
   let selectedPM = 'upi';
   let trendChart, catChart, pmChart;
   let lastFetchTime = null;
+  let refreshInProgress = false;
+  let syncInProgress = false;
 
   const $ = id => document.getElementById(id);
   const todayISO = () => new Date().toISOString().slice(0,10);
@@ -367,13 +370,13 @@ function doGet(e) {
 
   async function loadLocalState(){
     try{
-      const p = await window.storage.get('ledger-pending', false);
-      pending = p ? JSON.parse(p.value) : [];
+      const p = localStorage.getItem('ledger-pending');
+      pending = p ? JSON.parse(p) : [];
     }catch(err){ pending = []; }
     try{
-      const s = await window.storage.get('ledger-settings', false);
+      const s = localStorage.getItem('ledger-settings');
       if(s){
-        const parsed = JSON.parse(s.value);
+        const parsed = JSON.parse(s);
         if(parsed.categories) categories = parsed.categories;
         if(parsed.sheetUrl) $('sheetUrl').value = parsed.sheetUrl;
       }
@@ -382,11 +385,11 @@ function doGet(e) {
   }
 
   async function saveLocalState(){
-    try{ await window.storage.set('ledger-pending', JSON.stringify(pending), false); }catch(err){}
+    try{ localStorage.setItem('ledger-pending', JSON.stringify(pending)); }catch(err){}
     try{
-      await window.storage.set('ledger-settings', JSON.stringify({
+      localStorage.setItem('ledger-settings', JSON.stringify({
         categories: categories, sheetUrl: $('sheetUrl').value.trim()
-      }), false);
+      }));
     }catch(err){}
   }
 
@@ -417,10 +420,13 @@ function doGet(e) {
   }
 
   async function refreshFromSheet(userTriggered){
+    if(refreshInProgress) return;
+    refreshInProgress = true;
     const url = $('sheetUrl').value.trim();
     if(!url){
       setSourceStatus('bad', 'No Sheet connected — add your Apps Script URL in Settings.');
       renderAll();
+      refreshInProgress = false;
       return;
     }
     setSourceStatus('stale', 'Loading from Sheet…');
@@ -435,6 +441,7 @@ function doGet(e) {
     }catch(err){
       setSourceStatus('bad', 'Could not reach Sheet — showing last known + pending data.');
     }
+    refreshInProgress = false;
     await trySyncPending(false);
     renderAll();
   }
@@ -447,8 +454,10 @@ function doGet(e) {
   }
 
   async function trySyncPending(showStatus){
+    if(syncInProgress) return;
     const url = $('sheetUrl').value.trim();
     if(!url || !pending.length) return;
+    syncInProgress = true;
     const stillPending = [];
     for(const entry of pending){
       try{ await pushEntryToSheet(entry, url); }
@@ -456,6 +465,7 @@ function doGet(e) {
     }
     pending = stillPending;
     await saveLocalState();
+    syncInProgress = false;
     if(!pending.length && showStatus) await refreshFromSheet(false);
   }
 
@@ -496,6 +506,11 @@ function doGet(e) {
   function allEntries(){ return [...remoteEntries, ...pending]; }
   function monthKey(dateStr){ return String(dateStr).slice(0,7); }
   function monthLabel(key){ const [y,m]=key.split('-'); return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
+  function shortDate(dateStr){
+    const d = new Date(dateStr + 'T00:00:00');
+    if(isNaN(d)) return dateStr;
+    return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+  }
 
   function populateMonthFilter(){
     const months = [...new Set(allEntries().map(e=>monthKey(e.date)))].sort().reverse();
@@ -516,7 +531,7 @@ function doGet(e) {
         <tbody>
           ${rows.map(e=>`
             <tr class="${e.synced?'':'pending'}">
-              <td>${e.date}</td>
+              <td>${shortDate(e.date)}</td>
               <td>${e.category}</td>
               <td><span class="tag ${e.paymethod}">${e.paymethod}</span></td>
               <td>${e.note || '—'}</td>
