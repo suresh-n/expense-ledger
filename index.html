@@ -296,12 +296,19 @@
 }
 
 function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Entries');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Entries');
   var rows = [];
   if (sheet) {
     var data = sheet.getDataRange().getValues();
+    var tz = ss.getSpreadsheetTimeZone();
     rows = data.map(function(r) {
-      return { date: r[0], amount: r[1], category: r[2], paymethod: r[3], note: r[4] };
+      var dateVal = r[0];
+      var dateStr = dateVal;
+      if (Object.prototype.toString.call(dateVal) === '[object Date]') {
+        dateStr = Utilities.formatDate(dateVal, tz, 'yyyy-MM-dd');
+      }
+      return { date: dateStr, amount: r[1], category: r[2], paymethod: r[3], note: r[4] };
     }).filter(function(r){ return r.date; });
   }
   var json = JSON.stringify(rows);
@@ -311,7 +318,7 @@ function doGet(e) {
   }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }</pre>
-      <div class="helptext">Note: reading data back uses a technique called JSONP (a script-tag fetch) rather than a normal request — this is because Google's Web App doesn't send the browser permission headers a regular fetch needs to read a response from a different site. JSONP works around that reliably; you don't need to do anything differently, it's handled automatically.</div>
+      <div class="helptext">Note: reading data back uses a technique called JSONP (a script-tag fetch) rather than a normal request — this is because Google's Web App doesn't send the browser permission headers a regular fetch needs to read a response from a different site. JSONP works around that reliably; you don't need to do anything differently, it's handled automatically. The date is explicitly formatted using the Sheet's own timezone to avoid a day-shift bug that occurs when Sheets auto-converts a date string into a real Date cell.</div>
     </div>
   </div>
 </div>
