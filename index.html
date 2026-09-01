@@ -206,6 +206,8 @@
       <div class="filter-row">
         <span class="month-label">Month:</span>
         <select id="monthFilter"></select>
+        <span class="month-label">Category:</span>
+        <select id="catFilterLedger"></select>
         <button class="btn btn-ghost" id="exportBtn" style="margin-left:auto;">Export CSV</button>
       </div>
       <div class="table-scroll"><div id="tableWrap"></div></div>
@@ -239,11 +241,16 @@
       </div>
     </div>
 
+    <div class="filter-row">
+      <span class="month-label">Insight month:</span>
+      <select id="dashMonthFilter"></select>
+    </div>
+
     <div class="stats-row">
       <div class="stat"><div class="eyebrow">This month</div><div class="val" id="statThisMonth">₹0</div></div>
       <div class="stat"><div class="eyebrow">Last month</div><div class="val" id="statLastMonth">₹0</div></div>
-      <div class="stat"><div class="eyebrow">Top category</div><div class="val" id="statTopCat" style="font-size:1.1rem;">—</div></div>
-      <div class="stat"><div class="eyebrow">Entries logged</div><div class="val sage" id="statCount">0</div></div>
+      <div class="stat"><div class="eyebrow">Top category<span id="statTopCatScope"></span></div><div class="val" id="statTopCat" style="font-size:1.1rem;">—</div></div>
+      <div class="stat"><div class="eyebrow">Entries logged<span id="statCountScope"></span></div><div class="val sage" id="statCount">0</div></div>
     </div>
 
     <div class="panel" style="margin-bottom:18px;">
@@ -255,12 +262,12 @@
     <div class="charts-grid">
       <div class="panel">
         <div class="eyebrow">Breakdown</div>
-        <h2>By category (all-time)</h2>
+        <h2>By category <span id="catChartLabel">(all-time)</span></h2>
         <div class="chart-box"><canvas id="catChart"></canvas></div>
       </div>
       <div class="panel">
         <div class="eyebrow">Breakdown</div>
-        <h2>By payment method (all-time)</h2>
+        <h2>By payment method <span id="pmChartLabel">(all-time)</span></h2>
         <div class="chart-box"><canvas id="pmChart"></canvas></div>
       </div>
     </div>
@@ -372,6 +379,7 @@ function doGet(e) {
     if(!categories.includes(v)) categories.push(v);
     $('new-cat').value='';
     renderCategoryOptions();
+    populateCatFilterLedger();
     saveLocalState();
   });
 
@@ -519,18 +527,37 @@ function doGet(e) {
     return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
   }
 
+  function getMonthsList(){
+    return [...new Set(allEntries().map(e=>monthKey(e.date)))].sort().reverse();
+  }
   function populateMonthFilter(){
-    const months = [...new Set(allEntries().map(e=>monthKey(e.date)))].sort().reverse();
+    const months = getMonthsList();
     const sel = $('monthFilter');
     const current = sel.value;
     sel.innerHTML = '<option value="all">All months</option>' + months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
     if(months.includes(current)) sel.value = current; else if(months.length) sel.value = months[0]; else sel.value='all';
   }
+  function populateCatFilterLedger(){
+    const sel = $('catFilterLedger');
+    const current = sel.value;
+    sel.innerHTML = '<option value="all">All categories</option>' + categories.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(categories.includes(current)) sel.value = current; else sel.value = 'all';
+  }
+  function populateDashMonthFilter(){
+    const months = getMonthsList();
+    const sel = $('dashMonthFilter');
+    const current = sel.value;
+    sel.innerHTML = '<option value="all">All time</option>' + months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+    if(months.includes(current)) sel.value = current; else sel.value = 'all';
+  }
   $('monthFilter').addEventListener('change', renderTable);
+  $('catFilterLedger').addEventListener('change', renderTable);
+  $('dashMonthFilter').addEventListener('change', ()=>{ renderStats(); renderCharts(); });
 
   function renderTable(){
-    const filter = $('monthFilter').value;
-    const rows = allEntries().filter(e => filter==='all' || monthKey(e.date)===filter).sort((a,b)=> b.date.localeCompare(a.date));
+    const monthF = $('monthFilter').value;
+    const catF = $('catFilterLedger').value;
+    const rows = allEntries().filter(e => (monthF==='all' || monthKey(e.date)===monthF) && (catF==='all' || e.category===catF)).sort((a,b)=> b.date.localeCompare(a.date));
     if(!rows.length){ $('tableWrap').innerHTML = `<div class="empty-state">No entries yet for this view.</div>`; return; }
     $('tableWrap').innerHTML = `
       <table>
@@ -549,19 +576,33 @@ function doGet(e) {
       </table>`;
   }
 
+  function dashFilteredEntries(){
+    const key = $('dashMonthFilter') ? $('dashMonthFilter').value : 'all';
+    const list = allEntries();
+    return key==='all' ? list : list.filter(e=>monthKey(e.date)===key);
+  }
+  function dashScopeLabel(){
+    const key = $('dashMonthFilter') ? $('dashMonthFilter').value : 'all';
+    return key==='all' ? '(all-time)' : `(${monthLabel(key)})`;
+  }
   function renderStats(){
     const now = new Date();
     const thisKey = now.toISOString().slice(0,7);
     const lastKey = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
-    const list = allEntries();
-    const sum = k => list.filter(e=>monthKey(e.date)===k).reduce((s,e)=>s+e.amount,0);
+    const fullList = allEntries();
+    const sum = k => fullList.filter(e=>monthKey(e.date)===k).reduce((s,e)=>s+e.amount,0);
     $('statThisMonth').textContent = fmt(sum(thisKey));
     $('statLastMonth').textContent = fmt(sum(lastKey));
-    $('statCount').textContent = list.length;
+
+    const scoped = dashFilteredEntries();
+    const scopeLabel = ' ' + dashScopeLabel();
+    $('statCount').textContent = scoped.length;
+    if($('statCountScope')) $('statCountScope').textContent = scopeLabel;
     const byCat = {};
-    list.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
+    scoped.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
     const top = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
     $('statTopCat').textContent = top ? top[0] : '—';
+    if($('statTopCatScope')) $('statTopCatScope').textContent = scopeLabel;
     $('pendingBadge').textContent = pending.length ? `${pending.length} pending sync` : '';
   }
 
@@ -593,8 +634,13 @@ function doGet(e) {
       options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>'₹'+v.toLocaleString('en-IN') } } } }
     });
 
+    const scoped = dashFilteredEntries();
+    const scopeLabel = dashScopeLabel();
+    if($('catChartLabel')) $('catChartLabel').textContent = scopeLabel;
+    if($('pmChartLabel')) $('pmChartLabel').textContent = scopeLabel;
+
     const byCat = {};
-    list.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
+    scoped.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
     if(catChart) catChart.destroy();
     catChart = new Chart($('catChart'), {
       type:'doughnut',
@@ -604,7 +650,7 @@ function doGet(e) {
     });
 
     const byPM = {};
-    list.forEach(e=>{ byPM[e.paymethod]=(byPM[e.paymethod]||0)+e.amount; });
+    scoped.forEach(e=>{ byPM[e.paymethod]=(byPM[e.paymethod]||0)+e.amount; });
     const pmColors = { cash:'#4C7A5E', upi:'#B5651D', card:'#3B5B8C', netbanking:'#7A5C9E' };
     if(pmChart) pmChart.destroy();
     pmChart = new Chart($('pmChart'), {
@@ -616,6 +662,8 @@ function doGet(e) {
 
   function renderAll(){
     populateMonthFilter();
+    populateCatFilterLedger();
+    populateDashMonthFilter();
     renderTable();
     renderStats();
     renderFI();
