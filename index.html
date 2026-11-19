@@ -124,6 +124,22 @@
     .pm-btn{padding:10px 6px;min-width:60px;}
     .btn-primary{padding:12px 16px;}
   }
+
+  /* quick-add chat */
+  .chat-panel{margin-bottom:18px;}
+  .chat-log{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px 10px;}
+  .bub{max-width:92%;padding:9px 12px;border-radius:10px;font-size:0.85rem;line-height:1.5;}
+  .bub.me{align-self:flex-end;background:var(--navy);color:var(--paper);border-bottom-right-radius:2px;}
+  .bub.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:2px;}
+  .pv-row{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line);}
+  .pv-amt{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .pv-row select{width:auto;padding:4px 6px;font-size:0.8rem;}
+  .pv-meta{font-size:0.75rem;opacity:0.7;}
+  .pv-warn{font-size:0.72rem;color:var(--alert);}
+  .pv-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .pv-actions .btn{padding:7px 12px;font-size:0.78rem;}
+  .pv-actions .btn-primary,.chat-input .btn-primary{width:auto;margin-top:0;}
+  .chat-input{display:flex;gap:8px;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -154,6 +170,17 @@
 
   <!-- ENTRY TAB -->
   <div class="tab-page active" id="page-entry">
+    <div class="panel chat-panel">
+      <div class="eyebrow">Quick add</div>
+      <h2>Type it like a message</h2>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="500 haircut today · 1,200 grocery upi yesterday, 80 tea" autocomplete="off">
+        <button class="btn btn-primary" id="chatSend">Send</button>
+      </div>
+      <div class="helptext">Nothing is saved until you tap Add. Dates: today, yesterday, 3 days ago, last friday, 12 nov, 15/11. Pay words: upi, gpay, cash, card, neft. Amounts: 500, ₹500, 1.5k, 1,200.</div>
+    </div>
+
     <div class="grid">
       <div class="panel">
         <div class="eyebrow">New entry</div>
@@ -287,6 +314,14 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="eyebrow">Quick add</div>
+      <h2>Chat keywords</h2>
+      <p class="helptext" style="opacity:.8">One per line: <code>keyword = Category</code>. Yours override the built-in list. Changing the category in a chat preview also teaches a keyword automatically.</p>
+      <textarea id="kwBox" rows="6" placeholder="barber = Personal Care&#10;hdfc sip = Investment"></textarea>
+      <button class="btn btn-sync" id="saveKwBtn" style="margin-top:10px;">Save keywords</button>
+      <span class="helptext" id="kwSaveStatus"></span>
+    </div>
     <div class="panel">
       <div class="eyebrow">One-time setup</div>
       <h2>Google Apps Script backend (paste this in once)</h2>
@@ -337,6 +372,7 @@ function doGet(e) {
   let remoteEntries = [];   // confirmed rows pulled from the Sheet
   let pending = [];         // added locally, not yet confirmed synced
   let categories = [...DEFAULT_CATS];
+  let userKw = {};
   let selectedPM = 'upi';
   let trendChart, catChart, pmChart;
   let lastFetchTime = null;
@@ -344,7 +380,10 @@ function doGet(e) {
   let syncInProgress = false;
 
   const $ = id => document.getElementById(id);
-  const todayISO = () => new Date().toISOString().slice(0,10);
+  const pad = n => String(n).padStart(2,'0');
+  const isoLocal = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const ymLocal = d => d.getFullYear()+'-'+pad(d.getMonth()+1);
+  const todayISO = () => isoLocal(new Date());
   const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
 
   $('todayStamp').textContent = new Date().toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
@@ -394,6 +433,7 @@ function doGet(e) {
         const parsed = JSON.parse(s);
         if(parsed.categories) categories = parsed.categories;
         if(parsed.sheetUrl) $('sheetUrl').value = parsed.sheetUrl;
+        if(parsed.kw) userKw = parsed.kw;
       }
     }catch(err){ /* none yet */ }
     renderCategoryOptions();
@@ -403,7 +443,7 @@ function doGet(e) {
     try{ localStorage.setItem('ledger-pending', JSON.stringify(pending)); }catch(err){}
     try{
       localStorage.setItem('ledger-settings', JSON.stringify({
-        categories: categories, sheetUrl: $('sheetUrl').value.trim()
+        categories: categories, sheetUrl: $('sheetUrl').value.trim(), kw: userKw
       }));
     }catch(err){}
   }
@@ -587,8 +627,8 @@ function doGet(e) {
   }
   function renderStats(){
     const now = new Date();
-    const thisKey = now.toISOString().slice(0,7);
-    const lastKey = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+    const thisKey = ymLocal(now);
+    const lastKey = ymLocal(new Date(now.getFullYear(), now.getMonth()-1, 1));
     const fullList = allEntries();
     const sum = k => fullList.filter(e=>monthKey(e.date)===k).reduce((s,e)=>s+e.amount,0);
     $('statThisMonth').textContent = fmt(sum(thisKey));
@@ -679,8 +719,215 @@ function doGet(e) {
     a.href = URL.createObjectURL(blob); a.download = 'ledger-export.csv'; a.click();
   });
 
+  /* ===== Quick-add chat ===== */
+  /*PARSER-START*/
+  const CATMAP = {
+    'Investment':'sip,mutual fund,mf,stocks,stock,shares,nifty,etf,ppf,nps,epf,fd,rd,fixed deposit,recurring deposit,sgb,gold bees,bonds,crypto,zerodha,groww,demat,investment,invest',
+    'Grocery':'grocery,groceries,vegetables,vegetable,veggies,fruits,fruit,milk,curd,eggs,egg,rice,atta,dal,oil,provisions,supermarket,bigbasket,blinkit,zepto,instamart,dmart,kirana,meat,chicken,mutton,fish,bread,flour,sugar,paneer,biscuits,masala,spices,ration,tea powder',
+    'EB (Electricity)':'eb,eb bill,electricity,current bill,bescom,tneb,tangedco,kseb,power bill,light bill,electric bill',
+    'Internet':'internet,wifi,broadband,fiber,fibre,jiofiber,airtel xstream,act fibernet,recharge,prepaid,postpaid,mobile bill,data pack,jio,airtel,bsnl,dth,tata play',
+    'Rent/EMI':'rent,emi,loan,home loan,car loan,house rent,pg rent,mortgage,instalment',
+    'Dining':'swiggy,zomato,restaurant,hotel,biryani,lunch,dinner,breakfast,tiffin,tea,coffee,chai,snacks,juice,dosa,idli,pizza,burger,cafe,starbucks,bakery,ice cream,meals,eating out,food,mcdonalds,kfc,dominos,canteen,parotta,sweets,chocolate,beer,wine',
+    'Transport':'petrol,diesel,fuel,cng,auto,cab,uber,ola,rapido,bus,metro,train,irctc,fastag,toll,parking,taxi,bike service,car service,servicing,puncture,oil change,ev charging,tyre,tire,car wash,helmet,namma yatri,redbus',
+    'Shopping':'amazon,flipkart,myntra,meesho,ajio,shirt,shirts,tshirt,dress,clothes,clothing,shoes,footwear,jeans,saree,bag,watch,electronics,phone,laptop,headphones,earphones,charger,accessories,decathlon,shopping,mall',
+    'Medical':'medicine,medicines,tablets,doctor,hospital,clinic,pharmacy,apollo,medical,lab test,blood test,scan,xray,x ray,dental,dentist,eye test,spectacles,glasses,consultation,physio,health checkup,1mg,pharmeasy,netmeds,vaccine,vaccination,ointment',
+    'Entertainment':'movie,movies,cinema,pvr,inox,bookmyshow,concert,game,games,gaming,steam,outing,amusement,party,bowling,pub',
+    'Personal Care':'haircut,hair cut,salon,barber,shaving,shave,spa,massage,facial,grooming,parlour,parlor,beauty,waxing,threading,manicure,pedicure,cosmetics,nykaa,hair oil,shampoo,skin care,perfume,deodorant,soap',
+    'Insurance':'insurance,premium,lic,term plan,health insurance,car insurance,bike insurance,policy',
+    'Education':'school fee,school fees,tuition,fees,course,udemy,coursera,books,book,stationery,exam,coaching,college,uniform,certification',
+    'Travel':'flight,flights,trip,vacation,holiday,resort,airbnb,makemytrip,goibibo,ixigo,hotel booking,homestay,visa fee',
+    'Subscriptions':'netflix,prime,hotstar,spotify,youtube premium,subscription,ott,icloud,google one,chatgpt,claude,domain,hosting,github,renewal',
+    'Household':'maintenance,plumber,electrician,carpenter,repair,repairs,cylinder,gas cylinder,lpg,maid,cleaning,water can,water bill,detergent,furniture,appliance,society,mop,broom',
+    'Gifts & Donations':'gift,gifts,donation,temple,charity,hundi'
+  };
+  const KW = [];
+  Object.entries(CATMAP).forEach(([c,s]) => s.split(',').forEach(k => KW.push([k.trim(), c])));
+
+  const PM_RULES = [
+    ['upi', /\b(upi|gpay|g pay|google pay|phonepe|phone pe|paytm|bhim|amazon pay)\b/i],
+    ['netbanking', /\b(net ?banking|net bank|neft|imps|rtgs|bank transfer|online transfer)\b/i],
+    ['card', /\b(credit card|debit card|card|cc)\b/i],
+    ['cash', /\b(cash|cashed)\b/i]
+  ];
+  const FILL = /\b(add|added|adding|log|record|enter|put|paid|pay|paying|spent|spend|bought|buy|got|for|on|of|to|via|by|using|with|from|in|at|the|a|an|my|i|me|rs|rupees?|inr|expense|entry|please|pls|just)\b/gi;
+  const WD = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const MON = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const MONRE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  const monIdx = s => MON.indexOf(s.slice(0,3).toLowerCase());
+
+  function mkDate(y,m,d){ const x = new Date(y,m,d); return (x.getFullYear()===y && x.getMonth()===m && x.getDate()===d) ? x : null; }
+  function pastDate(mo,d,y){
+    const t = new Date(); t.setHours(0,0,0,0);
+    if(y) return mkDate(y<100 ? y+2000 : y, mo, d);
+    let x = mkDate(t.getFullYear(), mo, d);
+    if(x && x > t) x = mkDate(t.getFullYear()-1, mo, d);
+    return x;
+  }
+
+  function extractDate(s){
+    const t = new Date(); t.setHours(0,0,0,0);
+    const off = n => { const x = new Date(t); x.setDate(x.getDate()-n); return x; };
+    let r = s, out = null;
+    const take = (re, fn) => { if(out) return; const m = r.match(re); if(!m) return; const d = fn(m); if(d){ out = d; r = r.replace(m[0], ' '); } };
+    take(/\bday before yesterday\b/i, () => off(2));
+    take(/\b(?:yesterday|yday|yest|last night)\b/i, () => off(1));
+    take(/\b(?:today|tdy|tonight|this (?:morning|afternoon|evening))\b/i, () => off(0));
+    take(/\b(\d{1,3}|an?) days? ago\b/i, m => off(/^an?$/i.test(m[1]) ? 1 : +m[1]));
+    take(/\b(last\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i, m => {
+      let k = (t.getDay() - WD.indexOf(m[2].toLowerCase()) + 7) % 7; if(m[1] && !k) k = 7; return off(k); });
+    take(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?[\\s\\-\\/]*(?:of\\s+)?'+MONRE+'(?:[\\s,]+(20\\d{2}))?\\b','i'),
+         m => pastDate(monIdx(m[2]), +m[1], m[3] && +m[3]));
+    take(new RegExp('\\b'+MONRE+'\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:[\\s,]+(20\\d{2}))?\\b','i'),
+         m => pastDate(monIdx(m[1]), +m[2], m[3] && +m[3]));
+    take(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})\b/, m => pastDate(+m[2]-1, +m[1], +m[3]));
+    take(/\b(\d{1,2})\/(\d{1,2})\b(?!\s*(?:kg|g|l|ltr|litre|liter|pcs?)\b)/i, m => pastDate(+m[2]-1, +m[1]));
+    take(/\b(?:on\s+(?:the\s+)?)?(\d{1,2})(?:st|nd|rd|th)\b/i, m => {
+      const dd = +m[1], y = t.getFullYear(), mo = t.getMonth();
+      let x = mkDate(y, mo, dd); if(x && x > t) x = mkDate(mo ? y : y-1, (mo+11)%12, dd); return x; });
+    return { date: out, rest: r };
+  }
+
+  function extractAmount(s){
+    const re = /((?:₹|\b(?:rs|inr)\b\.?))?\s*(\d+(?:\.\d+)?)\s*(k|lakhs?|lacs?|cr)?(?![a-z0-9])(\s*(?:\/-|rs\b\.?|rupees?|inr|₹))?/gi;
+    const mult = { k:1e3, lakh:1e5, lakhs:1e5, lac:1e5, lacs:1e5, cr:1e7 };
+    const unit = /^\s*(kgs?|gms?|g|ltrs?|litres?|liters?|ml|pcs?|pieces?|x|people|persons?|days?|months?|years?|nos|kms?|hours?|hrs?|mins?|plates?)\b/i;
+    const c = []; let m;
+    while((m = re.exec(s))){
+      c.push({ val: parseFloat(m[2]) * (m[3] ? mult[m[3].toLowerCase()] : 1), marked: !!(m[1] || m[4]),
+               qty: unit.test(s.slice(m.index + m[0].length)), text: m[0] });
+    }
+    const pool = c.filter(x => !x.qty); if(!pool.length) return null;
+    const pick = pool.find(x => x.marked) || pool.reduce((a,b) => b.val > a.val ? b : a);
+    return { amount: pick.val, rest: s.replace(pick.text, ' ') };
+  }
+
+  function guessCat(txt){
+    const t = ' ' + txt.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ') + ' ';
+    let best = null, score = 0;
+    const test = (kw, cat, bonus) => {
+      const k = kw.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').trim(); if(!k) return;
+      const sc = k.length + bonus;
+      if(sc > score && new RegExp('\\b'+k+'s?\\b').test(t)){ best = cat; score = sc; }
+    };
+    Object.entries(userKw).forEach(([k,c]) => test(k, c, 100));
+    categories.forEach(c => test(c, c, 50));
+    KW.forEach(([k,c]) => test(k, c, 0));
+    return best;
+  }
+  function resolveCat(c){
+    const hit = categories.find(x => x.toLowerCase() === String(c).toLowerCase());
+    return hit ? { name: hit, isNew: false } : { name: c, isNew: true };
+  }
+
+  function parseExpenses(text){
+    text = text.replace(/(\d),(?=\d{2,3}(?!\d))/g, '$1');
+    let segs = text.split(/[;\n]+|,\s*|\s\+\s/).map(s => s.trim()).filter(Boolean);
+    segs = segs.flatMap(s => { const p = s.split(/\s+and\s+|\s*&\s*/i); return (p.length > 1 && p.every(x => /\d/.test(x))) ? p : [s]; });
+    if(segs.filter(s => /\d/.test(s)).length <= 1) segs = [text];
+    const g = extractDate(text).date;
+    const out = [];
+    segs.forEach(seg => {
+      const d = extractDate(seg); let rest = d.rest, pm = selectedPM;
+      for(const [k,re] of PM_RULES){ if(re.test(rest)){ pm = k; rest = rest.replace(re, ' '); break; } }
+      const a = extractAmount(rest); if(!a) return;
+      const note = a.rest.replace(FILL,' ').replace(/[₹,;:!?()"]/g,' ').replace(/\s+/g,' ').trim();
+      const guess = guessCat(note);
+      const cat = resolveCat(guess || 'Others');
+      out.push({ date: isoLocal(d.date || g || new Date()), amount: a.amount, paymethod: pm,
+                 note: note.charAt(0).toUpperCase() + note.slice(1), category: cat.name, cat0: cat.name,
+                 isNew: cat.isNew, matched: !!guess });
+    });
+    return out;
+  }
+  /*PARSER-END*/
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const PMN = { upi:'UPI', cash:'Cash', card:'Card', netbanking:'Net Bank' };
+  const drafts = {}; let draftSeq = 0;
+
+  function bub(html, cls){
+    const d = document.createElement('div'); d.className = 'bub ' + cls; d.innerHTML = html;
+    $('chatLog').appendChild(d); $('chatLog').scrollTop = $('chatLog').scrollHeight; return d;
+  }
+  function fillKwBox(){ $('kwBox').value = Object.entries(userKw).map(([k,c]) => k + ' = ' + c).join('\n'); }
+
+  function sendChat(){
+    const v = $('chatInput').value.trim(); if(!v) return;
+    $('chatInput').value = '';
+    bub(esc(v), 'me');
+    const list = parseExpenses(v);
+    if(!list.length){ bub('No amount found. Try <em>500 haircut today</em> or <em>1,200 grocery upi yesterday</em>.', 'bot'); return; }
+    const id = 'd' + (++draftSeq); drafts[id] = list;
+    const rows = list.map((e,i) => {
+      const opts = [...categories, ...(e.isNew ? [e.category] : [])].map(c => `<option ${c===e.category?'selected':''}>${esc(c)}</option>`).join('');
+      return `<div class="pv-row"><span class="pv-amt">${fmt(e.amount)}</span>
+        <select class="pv-cat" data-id="${id}" data-i="${i}">${opts}</select>
+        <span class="pv-meta">${shortDate(e.date)} · ${PMN[e.paymethod]}${e.note ? ' · “'+esc(e.note)+'”' : ''}</span>
+        ${!e.matched ? '<span class="pv-warn">No keyword matched. Pick a category.</span>' : ''}
+        ${e.isNew ? '<span class="pv-warn">New category</span>' : ''}</div>`;
+    }).join('');
+    const edit = list.length === 1 ? `<button class="btn btn-ghost" data-act="edit" data-id="${id}">Edit in form</button>` : '';
+    bub(rows + `<div class="pv-actions"><button class="btn btn-primary" data-act="add" data-id="${id}">Add ${list.length>1 ? 'all '+list.length : 'entry'}</button>${edit}<button class="btn btn-ghost" data-act="drop" data-id="${id}">Discard</button></div>`, 'bot');
+  }
+
+  function learn(list){
+    let ch = false;
+    list.forEach(e => {
+      if(e.category !== e.cat0 && e.note){
+        const w = e.note.toLowerCase().split(' ').find(x => x.length >= 3 && !/^\d/.test(x));
+        if(w){ userKw[w] = e.category; ch = true; }
+      }
+    });
+    if(ch){ fillKwBox(); saveLocalState(); }
+  }
+
+  async function submitEntries(list){
+    const url = $('sheetUrl').value.trim(); let queued = 0;
+    for(const e of list){
+      if(!categories.includes(e.category)) categories.push(e.category);
+      const entry = { id:'p-'+Date.now()+'-'+Math.floor(Math.random()*1000), date:e.date, amount:e.amount, category:e.category, paymethod:e.paymethod, note:e.note };
+      if(url){ try{ await pushEntryToSheet(entry, url); }catch(err){ pending.push(entry); queued++; } }
+      else { pending.push(entry); queued++; }
+    }
+    renderCategoryOptions(); populateCatFilterLedger(); await saveLocalState();
+    if(url) await refreshFromSheet(false); else renderAll();
+    return queued;
+  }
+
+  function loadIntoForm(e){
+    if(!categories.includes(e.category)){ categories.push(e.category); renderCategoryOptions(); populateCatFilterLedger(); saveLocalState(); }
+    $('f-date').value = e.date; $('f-amount').value = e.amount; $('f-category').value = e.category; $('f-note').value = e.note || '';
+    const b = document.querySelector('.pm-btn[data-pm="'+e.paymethod+'"]'); if(b) b.click();
+    $('f-amount').scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+
+  $('chatSend').addEventListener('click', sendChat);
+  $('chatInput').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); sendChat(); } });
+  $('chatLog').addEventListener('change', e => {
+    const s = e.target.closest('.pv-cat'); if(!s || !drafts[s.dataset.id]) return;
+    const en = drafts[s.dataset.id][+s.dataset.i]; en.category = s.value; en.isNew = !categories.includes(s.value);
+  });
+  $('chatLog').addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if(!b) return;
+    const list = drafts[b.dataset.id], box = b.closest('.bub'); if(!list) return;
+    delete drafts[b.dataset.id];
+    if(b.dataset.act === 'drop'){ box.innerHTML = '<em>Discarded.</em>'; return; }
+    if(b.dataset.act === 'edit'){ loadIntoForm(list[0]); box.innerHTML = '<em>Loaded into the form below. Adjust it, then tap Add &amp; sync entry.</em>'; return; }
+    box.querySelectorAll('button,select').forEach(x => x.disabled = true);
+    learn(list);
+    const q = await submitEntries(list);
+    box.innerHTML = (q ? 'Saved as pending (' + q + ' not sent yet): ' : 'Sent to Sheet: ') + list.map(x => fmt(x.amount) + ' · ' + esc(x.category)).join(', ');
+  });
+  $('saveKwBtn').addEventListener('click', () => {
+    const o = {};
+    $('kwBox').value.split('\n').forEach(l => { const m = l.split(/\s*[=:]\s*/); if(m.length >= 2 && m[0].trim()) o[m[0].trim().toLowerCase()] = m.slice(1).join('=').trim(); });
+    userKw = o; saveLocalState(); fillKwBox();
+    $('kwSaveStatus').textContent = 'Saved ✓'; setTimeout(() => $('kwSaveStatus').textContent = '', 2000);
+  });
+  bub('Type an expense, like <em>500 haircut today</em>. I\u2019ll show what I understood before anything is saved.', 'bot');
+
   (async function init(){
-    await loadLocalState();
+    await loadLocalState(); fillKwBox();
     if($('sheetUrl').value.trim()) await refreshFromSheet(false);
     else renderAll();
   })();
